@@ -16,12 +16,12 @@ enum Gender {
 model Product {
   id          String   @id @default(uuid()) @db.Uuid
   name        String   @unique
-  price       Decimal  @default(0) @db.Money
+  price       Decimal? @default(0) @db.Money
   description String?
-  slug        String   @unique
-  stock       Int      @default(0) @db.Integer
+  slug        String?  @unique
+  stock       Int?     @default(0) @db.Integer
   sizes       String[]
-  //tags
+  tags        String[] @default([])
   //images
   gender      Gender   @default(MEN)
 }

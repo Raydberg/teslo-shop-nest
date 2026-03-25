@@ -11,7 +11,7 @@ import {
 export class CreateProductDto {
   @IsString()
   @MinLength(1)
-  name?: string;
+  name: string;
   @IsNumber()
   @IsPositive()
   @IsOptional()
@@ -34,4 +34,9 @@ export class CreateProductDto {
 
   @IsIn(['MEN', 'WOMEN'])
   gender: 'MEN' | 'WOMEN';
+
+  @IsString({ each: true })
+  @IsArray()
+  @IsOptional()
+  tags?: string[];
 }
