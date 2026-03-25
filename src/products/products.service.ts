@@ -20,11 +20,18 @@ export class ProductsService {
         ? this.normalizeSlug(createProductDto.slug)
         : this.normalizeSlug(createProductDto.name);
 
+      const { images = [], ...productDetails } = createProductDto;
       const newProduct = await this.prisma.product.create({
-        data: { ...createProductDto, slug },
+        data: {
+          ...productDetails,
+          slug,
+          images: {
+            create: images.map((url) => ({ url })),
+          },
+        },
       });
 
-      return newProduct;
+      return { ...newProduct, images };
     } catch (error) {
       this.handleExceptions(error);
     }
@@ -37,6 +44,9 @@ export class ProductsService {
         skip: offset,
         take: limit,
         //relaciones
+        include: {
+          images: true,
+        },
       });
     } catch (error) {
       this.handleExceptions(error);
@@ -80,10 +90,10 @@ export class ProductsService {
         data.slug = this.normalizeSlug(data.name);
       }
 
-      return await this.prisma.product.update({
-        where: { id },
-        data,
-      });
+      // return await this.prisma.product.update({
+      // where: { id },
+      // data: { ...data, images: { create: images.map((url) => ({ url })) } },
+      // });
     } catch (error) {
       this.handleExceptions(error);
     }

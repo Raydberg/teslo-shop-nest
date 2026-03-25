@@ -13,15 +13,46 @@ enum Gender {
   WOMEN
 }
 
+enum Role {
+  ADMIN
+  USER
+}
+
 model Product {
-  id          String   @id @default(uuid()) @db.Uuid
-  name        String   @unique
-  price       Decimal? @default(0) @db.Money
+  id          String         @id @default(uuid()) @db.Uuid
+  name        String         @unique
+  price       Decimal?       @default(0) @db.Money
   description String?
-  slug        String?  @unique
-  stock       Int?     @default(0) @db.Integer
+  slug        String?        @unique
+  stock       Int?           @default(0) @db.Integer
   sizes       String[]
-  tags        String[] @default([])
-  //images
-  gender      Gender   @default(MEN)
+  tags        String[]       @default([])
+  images      ProductImage[]
+  gender      Gender         @default(MEN)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@index([slug, name])
+}
+
+model ProductImage {
+  id        String   @id @default(uuid()) @db.Uuid
+  url       String
+  product   Product? @relation(fields: [productId], references: [id])
+  productId String?  @db.Uuid
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([productId])
+}
+
+model User {
+  id       String  @id @default(uuid()) @db.Uuid
+  fullName String
+  email    String  @unique
+  password String
+  isActive Boolean @default(true)
+  roles    Role[]  @default([USER])
+
+  @@index([email, isActive])
 }
