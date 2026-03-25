@@ -1,0 +1,27 @@
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Gender {
+  MEN
+  WOMEN
+}
+
+model Product {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @unique
+  price       Decimal  @default(0) @db.Money
+  description String?
+  slug        String   @unique
+  stock       Int      @default(0) @db.Integer
+  sizes       String[]
+  //tags
+  //images
+  gender      Gender   @default(MEN)
+}
