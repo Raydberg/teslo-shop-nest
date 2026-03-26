@@ -5,9 +5,10 @@ import { AuthService } from 'src/auth/auth.service';
 import { PassportModule } from '@nestjs/passport';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { JwtStrategy } from 'src/auth/strategies/jwt,strategy';
 @Module({
   controllers: [AuthController],
-  providers: [AuthService, PrismaService],
+  providers: [JwtStrategy, AuthService, PrismaService, ConfigService],
   imports: [
     PassportModule.register({
       defaultStrategy: 'jwt',
@@ -38,5 +39,6 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
     //   },
     // }),
   ],
+  exports: [JwtStrategy, PassportModule, JwtModule],
 })
 export class AuthModule {}
