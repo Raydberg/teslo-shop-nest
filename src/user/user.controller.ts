@@ -1,34 +1,49 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Body,
+  Patch,
+  ParseUUIDPipe,
+  Param,
+} from '@nestjs/common';
 import { UserService } from './user.service';
-import { CreateUserDto } from './dto/create-user.dto';
-import { UpdateUserDto } from './dto/update-user.dto';
+import { Auth } from 'src/auth/decorators/auth.decorator';
+import { GetUser } from 'src/auth/decorators/get-user.decorator';
+import { User } from 'src/generated/prisma/client';
+import { ValidRole } from 'src/auth/interfaces/valid-roles';
+import type { UpdateRole } from 'src/user/interface/update-role.interface';
 
 @Controller('user')
 export class UserController {
   constructor(private readonly userService: UserService) {}
 
-  @Post()
-  create(@Body() createUserDto: CreateUserDto) {
-    return this.userService.create(createUserDto);
-  }
-
   @Get()
-  findAll() {
-    return this.userService.findAll();
+  @Auth()
+  getUser(@GetUser() user: Omit<User, 'password'>) {
+    return this.userService.getUser(user);
   }
 
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.userService.findOne(+id);
+  @Get('all')
+  @Auth(ValidRole.ADMIN)
+  findAllUsers() {
+    return this.userService.findAllUser();
   }
 
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto) {
-    return this.userService.update(+id, updateUserDto);
+  @Patch('role')
+  @Auth(ValidRole.ADMIN)
+  setRole(@Body() params: UpdateRole) {
+    return this.userService.setRole(params);
   }
 
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.userService.remove(+id);
+  @Patch('status')
+  @Auth(ValidRole.ADMIN)
+  setStatus(@Body('userId') userId: string) {
+    return this.userService.setStatus(userId);
+  }
+
+  @Get(':userId')
+  @Auth()
+  getUserById(@Param('userId', ParseUUIDPipe) userId: string) {
+    return this.userService.findUserById(userId);
   }
 }

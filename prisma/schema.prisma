@@ -29,10 +29,18 @@ model Product {
   tags        String[]       @default([])
   images      ProductImage[]
   gender      Gender         @default(MEN)
+  category    Category?      @relation(fields: [categoryId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  categoryId  String?        @db.Uuid
+  user        User?          @relation(fields: [userId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  userId      String?        @db.Uuid
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
 
-  @@index([slug, name])
+  @@index([categoryId])
+  @@index([userId])
+  @@index([createdAt])
+  @@index([tags], type: Gin)
+  @@index([sizes], type: Gin)
 }
 
 model ProductImage {
@@ -47,12 +55,26 @@ model ProductImage {
 }
 
 model User {
-  id       String  @id @default(uuid()) @db.Uuid
-  fullName String
-  email    String  @unique
-  password String
-  isActive Boolean @default(true)
-  roles    Role[]  @default([USER])
+  id        String    @id @default(uuid()) @db.Uuid
+  fullName  String
+  email     String    @unique
+  password  String
+  isActive  Boolean   @default(true)
+  roles     Role[]    @default([USER])
+  product   Product[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @default(now()) @updatedAt
 
-  @@index([email, isActive])
+  // @@index([email, isActive])
+}
+
+model Category {
+  id        String    @id @default(uuid()) @db.Uuid
+  name      String    @unique
+  slug      String?   @unique
+  product   Product[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([createdAt])
 }

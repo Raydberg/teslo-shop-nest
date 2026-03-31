@@ -8,13 +8,16 @@ import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { PrismaService } from 'src/common/prisma.service';
 import { PaginationDto } from 'src/common/dtos/pagination.dto';
-import { Product } from 'src/generated/prisma/client';
+import { Product, User } from 'src/generated/prisma/client';
 import { validate as isUUID } from 'uuid';
 @Injectable()
 export class ProductsService {
   private readonly logger = new Logger('ProductService');
   constructor(private readonly prisma: PrismaService) {}
-  async create(createProductDto: CreateProductDto) {
+  async create(
+    createProductDto: CreateProductDto,
+    user: Omit<User, 'password'>,
+  ) {
     try {
       const slug = createProductDto.slug
         ? this.normalizeSlug(createProductDto.slug)
@@ -27,6 +30,9 @@ export class ProductsService {
           slug,
           images: {
             create: images.map((url) => ({ url })),
+          },
+          user: {
+            connect: { id: user.id },
           },
         },
       });
