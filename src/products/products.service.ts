@@ -8,17 +8,25 @@ import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { PrismaService } from 'src/common/prisma.service';
 import { PaginationDto } from 'src/common/dtos/pagination.dto';
-import { Product, User } from 'src/generated/prisma/client';
+import { Product, ProductImage, User } from 'src/generated/prisma/client';
 import { validate as isUUID } from 'uuid';
+import { CloudflareService } from 'src/common/cloudflare.service';
+
+type ProductWithImages = Product & { images: ProductImage[] };
+
 @Injectable()
 export class ProductsService {
   private readonly logger = new Logger('ProductService');
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly cloudflareService: CloudflareService,
+  ) {}
   async create(
     createProductDto: CreateProductDto,
-    user: Omit<User, 'password'>,
+    // user: Omit<User, 'password'>,
   ) {
     try {
+      this.logger.debug(createProductDto);
       const slug = createProductDto.slug
         ? this.normalizeSlug(createProductDto.slug)
         : this.normalizeSlug(createProductDto.name);
@@ -29,15 +37,19 @@ export class ProductsService {
           ...productDetails,
           slug,
           images: {
-            create: images.map((url) => ({ url })),
+            create: images.map((key) => ({ url: key })),
           },
           user: {
-            connect: { id: user.id },
+            connect: { id: '6fbdd365-0d72-4aa3-a554-d3235ee4e83d' },
           },
+        },
+        include: {
+          images: true,
         },
       });
 
-      return { ...newProduct, images };
+      // return await this.withSignedImageUrls(newProduct);
+      return newProduct;
     } catch (error) {
       this.handleExceptions(error);
     }
@@ -46,7 +58,7 @@ export class ProductsService {
   async findAll(paginationDto: PaginationDto) {
     try {
       const { limit = 10, offset = 0 } = paginationDto;
-      return await this.prisma.product.findMany({
+      const products = await this.prisma.product.findMany({
         skip: offset,
         take: limit,
         //relaciones
@@ -54,6 +66,10 @@ export class ProductsService {
           images: true,
         },
       });
+
+      return await Promise.all(
+        products.map((product) => this.withSignedImageUrls(product)),
+      );
     } catch (error) {
       this.handleExceptions(error);
     }
@@ -61,22 +77,10 @@ export class ProductsService {
 
   async findOne(term: string) {
     try {
-      let product: Product | null;
-      if (isUUID(term)) {
-        product = await this.prisma.product.findFirst({
-          where: { id: term },
-        });
-      } else {
-        product = await this.prisma.product.findFirst({
-          where: {
-            OR: [
-              { slug: { equals: term, mode: 'insensitive' } },
-              { name: { equals: term, mode: 'insensitive' } },
-            ],
-          },
-        });
-      }
-      return product;
+      const product = await this.findProductEntity(term);
+      if (!product) return null;
+
+      return await this.withSignedImageUrls(product);
     } catch (error) {
       this.handleExceptions(error);
     }
@@ -84,7 +88,7 @@ export class ProductsService {
 
   async update(id: string, updateProductDto: UpdateProductDto) {
     try {
-      const productExit = await this.findOne(id);
+      const productExit = await this.findProductEntity(id);
       if (!productExit)
         throw new NotFoundException(`Product with id ${id} not found`);
 
@@ -95,11 +99,6 @@ export class ProductsService {
       } else if (data.name && productExit.name !== data.name) {
         data.slug = this.normalizeSlug(data.name);
       }
-
-      // return await this.prisma.product.update({
-      // where: { id },
-      // data: { ...data, images: { create: images.map((url) => ({ url })) } },
-      // });
     } catch (error) {
       this.handleExceptions(error);
     }
@@ -122,5 +121,43 @@ export class ProductsService {
 
   private normalizeSlug(value: string): string {
     return value.toLowerCase().trim().replaceAll(' ', '_').replaceAll("'", '');
+  }
+
+  private async findProductEntity(
+    term: string,
+  ): Promise<ProductWithImages | null> {
+    if (isUUID(term)) {
+      return await this.prisma.product.findFirst({
+        where: { id: term },
+        include: {
+          images: true,
+        },
+      });
+    }
+
+    return await this.prisma.product.findFirst({
+      where: {
+        OR: [
+          { slug: { equals: term, mode: 'insensitive' } },
+          { name: { equals: term, mode: 'insensitive' } },
+        ],
+      },
+      include: {
+        images: true,
+      },
+    });
+  }
+
+  private async withSignedImageUrls(product: ProductWithImages) {
+    const images = await Promise.all(
+      product.images.map((image) =>
+        this.cloudflareService.getDownloadUrl(image.url),
+      ),
+    );
+
+    return {
+      ...product,
+      images,
+    };
   }
 }

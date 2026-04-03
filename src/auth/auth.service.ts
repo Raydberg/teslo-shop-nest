@@ -13,6 +13,8 @@ import { bcryptAdapter } from 'src/common/adapters/bycript.adapter';
 import { PrismaService } from 'src/common/prisma.service';
 import { Prisma } from 'src/generated/prisma/client';
 
+// interface AuthResponse {}
+
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger('AuthService');

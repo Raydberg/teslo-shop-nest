@@ -11,7 +11,7 @@ import {
 export class CreateProductDto {
   @IsString()
   @MinLength(1)
-  name: string;
+  name!: string;
   @IsNumber()
   @IsPositive()
   @IsOptional()
@@ -30,18 +30,18 @@ export class CreateProductDto {
   stock?: number;
   @IsString({ each: true })
   @IsArray()
-  sizes: string[];
+  sizes!: string[];
 
   @IsIn(['MEN', 'WOMEN'])
-  gender: 'MEN' | 'WOMEN';
+  gender!: 'MEN' | 'WOMEN';
 
   @IsString({ each: true })
   @IsArray()
   @IsOptional()
   tags?: string[];
 
-  @IsString()
-  @IsArray({ each: true })
+  @IsString({ each: true })
+  // @IsArray({ each: true })
   @IsOptional()
   images?: string[];
 }

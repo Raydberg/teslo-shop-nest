@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Get, UseGuards } from '@nestjs/common';
+import { Controller, Post, Body, Get, UseGuards, Res } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { CreateUserDto } from 'src/auth/dto/create-user.dto';
 import { LoginDto } from 'src/auth/dto/login.dto';
@@ -10,6 +10,7 @@ import { UserRoleGuard } from 'src/auth/guards/user-role.guard';
 import { RoleProtected } from 'src/auth/decorators/role-protected.decorator';
 import { ValidRole } from 'src/auth/interfaces/valid-roles';
 import { Auth } from 'src/auth/decorators/auth.decorator';
+import type { Response } from 'express';
 
 export type SafeUser = Omit<User, 'password'>;
 
@@ -18,13 +19,23 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('register')
-  register(@Body() createUserDto: CreateUserDto) {
-    return this.authService.register(createUserDto);
+  async register(
+    @Body() createUserDto: CreateUserDto,
+    @Res({ passthrough: true }) resp: Response,
+  ) {
+    const { token, ...res } = await this.authService.register(createUserDto);
+    resp.cookie('access_token', token);
+    return res;
   }
 
   @Post('login')
-  login(@Body() loginUserDto: LoginDto) {
-    return this.authService.login(loginUserDto);
+  async login(
+    @Body() loginUserDto: LoginDto,
+    @Res({ passthrough: true }) resp: Response,
+  ) {
+    const { token, ...rest } = await this.authService.login(loginUserDto);
+    resp.cookie('access_token', token);
+    return rest;
   }
 
   @Get('private')

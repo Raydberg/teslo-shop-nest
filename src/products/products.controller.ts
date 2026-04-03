@@ -16,10 +16,15 @@ import { PaginationDto } from 'src/common/dtos/pagination.dto';
 import { GetUser } from 'src/auth/decorators/get-user.decorator';
 import { User } from 'src/generated/prisma/client';
 import { ApiResponse } from '@nestjs/swagger';
+import { CloudflareService } from 'src/common/cloudflare.service';
+import { ImageMetadata } from 'src/products/interfaces/image-metadata.interface';
 
 @Controller('products')
 export class ProductsController {
-  constructor(private readonly productsService: ProductsService) {}
+  constructor(
+    private readonly productsService: ProductsService,
+    private readonly cloudflareService: CloudflareService,
+  ) {}
 
   @Post()
   // @ApiResponse({ status: 201, description: 'Product was created' , type })
@@ -27,9 +32,9 @@ export class ProductsController {
   @ApiResponse({ status: 403, description: 'Forbidden token realed' })
   create(
     @Body() createProductDto: CreateProductDto,
-    @GetUser() user: Omit<User, 'password'>,
+    // @GetUser() user: Omit<User, 'password'>,
   ) {
-    return this.productsService.create(createProductDto, user);
+    return this.productsService.create(createProductDto);
   }
 
   @Get()
@@ -50,5 +55,11 @@ export class ProductsController {
   @Delete(':id')
   remove(@Param('id', ParseUUIDPipe) id: string) {
     return this.productsService.remove(id);
+  }
+
+  @Post('signed-url')
+  getUploadUrl(@Body('imageMetadata') imageMetadata: ImageMetadata[]) {
+    console.log('Controller Image', imageMetadata);
+    return this.cloudflareService.getUploadUrl(imageMetadata);
   }
 }

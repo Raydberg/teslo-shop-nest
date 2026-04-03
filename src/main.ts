@@ -6,6 +6,8 @@ import {
   SwaggerCustomOptions,
   SwaggerModule,
 } from '@nestjs/swagger';
+import cookieParser from 'cookie-parser';
+// import * as cookieParser from 'cookie-parser';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -44,6 +46,15 @@ async function bootstrap() {
     },
   };
   SwaggerModule.setup('api', app, documentFactory, customOptions);
+  // const {
+  //   invalidCsrfTokenError, // This is provided purely for convenience if you plan on creating your own middleware.
+  //   generateToken, // Use this in your routes to generate and provide a CSRF hash, along with a token cookie and token.
+  //   validateRequest, // Also a convenience if you plan on making your own middleware.
+  //   doubleCsrfProtection, // This is the default CSRF protection middleware.
+  // } = doubleCsrf(doubleCsrfOptions);
+  // app.use(doubleCsrfProtection);
+  app.use(cookieParser());
+  app.enableCors();
   await app.listen(process.env.PORT ?? 3000);
 }
 bootstrap();
