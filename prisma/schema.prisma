@@ -66,6 +66,7 @@ model User {
   updatedAt DateTime  @default(now()) @updatedAt
 
   // @@index([email, isActive])
+  refreshTokens RefreshToken[]
 }
 
 model Category {
@@ -77,4 +78,19 @@ model Category {
   updatedAt DateTime  @updatedAt
 
   @@index([createdAt])
+}
+
+model RefreshToken {
+  id         String   @id @default(uuid()) @db.Uuid
+  user       User     @relation(fields: [userId], references: [id])
+  token      String   @unique
+  userId     String   @db.Uuid
+  userAgent  String?
+  ipAddress  String?
+  expiryDate DateTime @db.Timestamp()
+  isRevoked  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([token])
 }

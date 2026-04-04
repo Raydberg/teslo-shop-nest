@@ -23,7 +23,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
   ) {}
 
-  async register(createUserDto: CreateUserDto) {
+  async register(createUserDto: CreateUserDto, userAgent: string, ip: string) {
     try {
       const { password, email, ...userCreate } = createUserDto;
 
@@ -35,6 +35,17 @@ export class AuthService {
         },
       });
 
+      const slug = crypto.randomUUID();
+      const { token } = await this.prisma.refreshToken.create({
+        data: {
+          token: bcryptAdapter.hash(slug),
+          userId: user.id,
+          expiryDate: new Date(Date.now() + 1000 * 60 * 60 * 24 * 7),
+          ipAddress: ip,
+          userAgent: userAgent,
+        },
+      });
+
       // delete user.password;
       return {
         id: user.id,
@@ -42,13 +53,14 @@ export class AuthService {
         fullName: user.email,
         roles: user.roles,
         token: this.getJwtToken({ id: user.id }),
+        refreshToken: token,
       };
     } catch (error) {
       this.handleDbErrors(error);
     }
   }
 
-  async login(loginUserDto: LoginDto) {
+  async login(loginUserDto: LoginDto, userAgent: string, ip: string) {
     try {
       const { password, email } = loginUserDto;
 
@@ -64,7 +76,6 @@ export class AuthService {
         },
       });
 
-      this.logger.debug(user);
       if (!user) {
         throw new UnauthorizedException('Credenciales are not valid');
       }
@@ -73,6 +84,18 @@ export class AuthService {
         throw new UnauthorizedException('Credenciales are not valid');
       }
 
+      const slug = crypto.randomUUID();
+      const { token } = await this.prisma.refreshToken.create({
+        data: {
+          token: bcryptAdapter.hash(slug),
+          userId: user.id,
+          expiryDate: new Date(Date.now() + 1000 * 60 * 60 * 24 * 7),
+          ipAddress: ip,
+          userAgent: userAgent,
+        },
+      });
+      this.logger.debug(token);
+
       return {
         id: user.id,
         fullName: user.fullName,
@@ -80,6 +103,7 @@ export class AuthService {
         email: user.email,
         roles: user.roles,
         token: this.getJwtToken({ id: user.id }),
+        refreshToken: token,
       };
     } catch (error) {
       this.handleDbErrors(error);

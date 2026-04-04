@@ -33,9 +33,13 @@ export class AuthController {
   async register(
     @Body() createUserDto: CreateUserDto,
     @Res({ passthrough: true }) resp: Response,
+    @Req() req: Request,
   ) {
-    const { token, id, ...res } =
-      await this.authService.register(createUserDto);
+    const { token, id, refreshToken, ...res } = await this.authService.register(
+      createUserDto,
+      req.headers['user-agent'] ?? '',
+      req.ip ?? '',
+    );
     resp.cookie('access_token', token, {
       httpOnly: true,
       maxAge: 3600000, // 1 hora en milisegundos
@@ -44,7 +48,12 @@ export class AuthController {
     resp.cookie('userId', id, {
       httpOnly: true,
     });
-
+    resp.cookie('refresh_cookie', refreshToken, {
+      httpOnly: true,
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      path: '/',
+      sameSite: 'lax',
+    });
     return res;
   }
 
@@ -52,8 +61,13 @@ export class AuthController {
   async login(
     @Body() loginUserDto: LoginDto,
     @Res({ passthrough: true }) resp: Response,
+    @Req() req: Request,
   ) {
-    const { token, id, ...rest } = await this.authService.login(loginUserDto);
+    const { token, id, refreshToken, ...rest } = await this.authService.login(
+      loginUserDto,
+      req.headers['user-agent'] ?? '',
+      req.ip ?? '', // Configuracion extra al usar proxy
+    );
     resp.cookie('access_token', token, {
       httpOnly: true,
       maxAge: 3600000, // 1 hora en milisegundos
@@ -61,6 +75,12 @@ export class AuthController {
     });
     resp.cookie('userId', id, {
       httpOnly: true,
+    });
+    resp.cookie('refresh_cookie', refreshToken, {
+      httpOnly: true,
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      path: '/',
+      sameSite: 'lax',
     });
     return { id, ...rest };
   }
