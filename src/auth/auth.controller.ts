@@ -1,4 +1,13 @@
-import { Controller, Post, Body, Get, UseGuards, Res } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  Get,
+  UseGuards,
+  Res,
+  Req,
+  Logger,
+} from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { CreateUserDto } from 'src/auth/dto/create-user.dto';
 import { LoginDto } from 'src/auth/dto/login.dto';
@@ -10,12 +19,14 @@ import { UserRoleGuard } from 'src/auth/guards/user-role.guard';
 import { RoleProtected } from 'src/auth/decorators/role-protected.decorator';
 import { ValidRole } from 'src/auth/interfaces/valid-roles';
 import { Auth } from 'src/auth/decorators/auth.decorator';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
+import { generateCsrfToken } from 'src/config/csrf.config';
 
 export type SafeUser = Omit<User, 'password'>;
 
 @Controller('auth')
 export class AuthController {
+  private logger = new Logger('AuthController');
   constructor(private readonly authService: AuthService) {}
 
   @Post('register')
@@ -23,8 +34,17 @@ export class AuthController {
     @Body() createUserDto: CreateUserDto,
     @Res({ passthrough: true }) resp: Response,
   ) {
-    const { token, ...res } = await this.authService.register(createUserDto);
-    resp.cookie('access_token', token);
+    const { token, id, ...res } =
+      await this.authService.register(createUserDto);
+    resp.cookie('access_token', token, {
+      httpOnly: true,
+      maxAge: 3600000, // 1 hora en milisegundos
+      // secure:true //prod
+    });
+    resp.cookie('userId', id, {
+      httpOnly: true,
+    });
+
     return res;
   }
 
@@ -33,9 +53,35 @@ export class AuthController {
     @Body() loginUserDto: LoginDto,
     @Res({ passthrough: true }) resp: Response,
   ) {
-    const { token, ...rest } = await this.authService.login(loginUserDto);
-    resp.cookie('access_token', token);
-    return rest;
+    const { token, id, ...rest } = await this.authService.login(loginUserDto);
+    resp.cookie('access_token', token, {
+      httpOnly: true,
+      maxAge: 3600000, // 1 hora en milisegundos
+      // secure:true //prod
+    });
+    resp.cookie('userId', id, {
+      httpOnly: true,
+    });
+    return { id, ...rest };
+  }
+
+  @Get('csrf-token')
+  getCsrfToken(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    const token = generateCsrfToken(req, res);
+    this.logger.debug('Token', token);
+    return { token };
+  }
+
+  @UseGuards(AuthGuard())
+  @Get('check-status')
+  checkStatus(
+    @GetUser() user: SafeUser,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const token = generateCsrfToken(req, res);
+
+    return { user, token };
   }
 
   @Get('private')

@@ -34,10 +34,10 @@ export class AuthService {
           password: bcryptAdapter.hash(password),
         },
       });
-      this.logger.debug(user);
 
       // delete user.password;
       return {
+        id: user.id,
         email: user.email,
         fullName: user.email,
         roles: user.roles,
@@ -60,6 +60,7 @@ export class AuthService {
           password: true,
           roles: true,
           fullName: true,
+          isActive: true,
         },
       });
 
@@ -73,13 +74,19 @@ export class AuthService {
       }
 
       return {
+        id: user.id,
+        fullName: user.fullName,
+        isActive: user.isActive,
         email: user.email,
+        roles: user.roles,
         token: this.getJwtToken({ id: user.id }),
       };
     } catch (error) {
       this.handleDbErrors(error);
     }
   }
+
+  // checkStatus() {}
 
   private getJwtToken(payload: JwtPayload) {
     const token = this.jwtService.sign(payload);
