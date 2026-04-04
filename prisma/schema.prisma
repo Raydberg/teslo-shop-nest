@@ -92,5 +92,5 @@ model RefreshToken {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  @@index([token])
+  @@index([token, userId])
 }

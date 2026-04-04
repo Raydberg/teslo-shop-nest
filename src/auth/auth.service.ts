@@ -31,14 +31,14 @@ export class AuthService {
         data: {
           ...userCreate,
           email: email.toLocaleLowerCase().trim(),
-          password: bcryptAdapter.hash(password),
+          password: await bcryptAdapter.hash(password),
         },
       });
 
       const slug = crypto.randomUUID();
-      const { token } = await this.prisma.refreshToken.create({
+      await this.prisma.refreshToken.create({
         data: {
-          token: bcryptAdapter.hash(slug),
+          token: await bcryptAdapter.hash(slug),
           userId: user.id,
           expiryDate: new Date(Date.now() + 1000 * 60 * 60 * 24 * 7),
           ipAddress: ip,
@@ -50,10 +50,10 @@ export class AuthService {
       return {
         id: user.id,
         email: user.email,
-        fullName: user.email,
+        fullName: user.fullName,
         roles: user.roles,
         token: this.getJwtToken({ id: user.id }),
-        refreshToken: token,
+        refreshToken: slug,
       };
     } catch (error) {
       this.handleDbErrors(error);
@@ -80,21 +80,23 @@ export class AuthService {
         throw new UnauthorizedException('Credenciales are not valid');
       }
 
-      if (!bcryptAdapter.compare(password, user.password)) {
+      if (!user.isActive) {
+        throw new UnauthorizedException('User is not active account');
+      }
+      if (!(await bcryptAdapter.compare(password, user.password))) {
         throw new UnauthorizedException('Credenciales are not valid');
       }
 
       const slug = crypto.randomUUID();
-      const { token } = await this.prisma.refreshToken.create({
+      await this.prisma.refreshToken.create({
         data: {
-          token: bcryptAdapter.hash(slug),
+          token: await bcryptAdapter.hash(slug),
           userId: user.id,
           expiryDate: new Date(Date.now() + 1000 * 60 * 60 * 24 * 7),
           ipAddress: ip,
           userAgent: userAgent,
         },
       });
-      this.logger.debug(token);
 
       return {
         id: user.id,
@@ -103,16 +105,90 @@ export class AuthService {
         email: user.email,
         roles: user.roles,
         token: this.getJwtToken({ id: user.id }),
-        refreshToken: token,
+        refreshToken: slug,
       };
     } catch (error) {
       this.handleDbErrors(error);
     }
   }
 
-  // checkStatus() {}
+  async refreshToken(
+    refreshToken: string,
+    userId: string,
+    userAgent: string,
+    ip: string,
+  ) {
+    const activeSessions = await this.prisma.refreshToken.findMany({
+      where: { userId, isRevoked: false },
+    });
 
-  private getJwtToken(payload: JwtPayload) {
+    let validSessionId: string | null = null;
+
+    for (const session of activeSessions) {
+      const isMatch = await bcryptAdapter.compare(refreshToken, session.token);
+      if (isMatch) {
+        validSessionId = session.id;
+        break;
+      }
+    }
+
+    if (!validSessionId) {
+      throw new UnauthorizedException('Inalid refresh token');
+    }
+
+    await this.prisma.refreshToken.update({
+      where: { id: validSessionId },
+      data: {
+        isRevoked: true,
+      },
+    });
+
+    const newSlug = crypto.randomUUID();
+
+    await this.prisma.refreshToken.create({
+      data: {
+        token: await bcryptAdapter.hash(newSlug),
+        userId: userId,
+        expiryDate: new Date(Date.now() + 1000 * 60 * 60 * 24 * 7),
+        userAgent: userAgent,
+        ipAddress: ip,
+      },
+    });
+
+    return {
+      token: this.getJwtToken({ id: userId }),
+      refreshToken: newSlug,
+      id: userId,
+    };
+  }
+
+  async logout(refreshToken: string, userId: string): Promise<void> {
+    const activeSessions = await this.prisma.refreshToken.findMany({
+      where: { userId, isRevoked: false },
+    });
+
+    let validSessionId: string | null = null;
+
+    for (const session of activeSessions) {
+      const isMatch = await bcryptAdapter.compare(refreshToken, session.token);
+      if (isMatch) {
+        validSessionId = session.id;
+        break;
+      }
+    }
+    if (!validSessionId) {
+      throw new UnauthorizedException('Inalid refresh token');
+    }
+
+    await this.prisma.refreshToken.update({
+      where: { id: validSessionId },
+      data: {
+        isRevoked: true,
+      },
+    });
+  }
+
+  private getJwtToken(payload: JwtPayload): string {
     const token = this.jwtService.sign(payload);
     return token;
   }

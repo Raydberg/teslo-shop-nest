@@ -7,6 +7,7 @@ import {
   Res,
   Req,
   Logger,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { CreateUserDto } from 'src/auth/dto/create-user.dto';
@@ -40,20 +41,7 @@ export class AuthController {
       req.headers['user-agent'] ?? '',
       req.ip ?? '',
     );
-    resp.cookie('access_token', token, {
-      httpOnly: true,
-      maxAge: 3600000, // 1 hora en milisegundos
-      // secure:true //prod
-    });
-    resp.cookie('userId', id, {
-      httpOnly: true,
-    });
-    resp.cookie('refresh_cookie', refreshToken, {
-      httpOnly: true,
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-      path: '/',
-      sameSite: 'lax',
-    });
+    this.setCookies(resp, token, refreshToken, id);
     return res;
   }
 
@@ -68,20 +56,7 @@ export class AuthController {
       req.headers['user-agent'] ?? '',
       req.ip ?? '', // Configuracion extra al usar proxy
     );
-    resp.cookie('access_token', token, {
-      httpOnly: true,
-      maxAge: 3600000, // 1 hora en milisegundos
-      // secure:true //prod
-    });
-    resp.cookie('userId', id, {
-      httpOnly: true,
-    });
-    resp.cookie('refresh_cookie', refreshToken, {
-      httpOnly: true,
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-      path: '/',
-      sameSite: 'lax',
-    });
+    this.setCookies(resp, token, refreshToken, id);
     return { id, ...rest };
   }
 
@@ -102,6 +77,68 @@ export class AuthController {
     const token = generateCsrfToken(req, res);
 
     return { user, token };
+  }
+
+  @Post('refresh')
+  async refreshToken(
+    @Req() req: Request,
+    @Res({ passthrough: true }) resp: Response,
+  ) {
+    const refreshCookie = req.cookies['refresh_cookie'] as string;
+    const userId = req.cookies.userId as string;
+
+    if (!refreshCookie || !userId) {
+      throw new UnauthorizedException('No session found');
+    }
+
+    const { token, refreshToken, id } = await this.authService.refreshToken(
+      refreshCookie,
+      userId,
+      req.headers['user-agent'] ?? '',
+      req.ip ?? '', // Configuracion extra al usar proxy
+    );
+    this.setCookies(resp, token, refreshToken, id);
+    return { status: 'Refreshed' };
+  }
+
+  @Post('logout')
+  async logout(
+    @Req() req: Request,
+    @Res({ passthrough: true }) resp: Response,
+  ) {
+    const refreshToken = req.cookies['refresh_cookie'] as string;
+    const userId = req.cookies.userId as string;
+
+    if (refreshToken && userId) {
+      await this.authService.logout(refreshToken, userId);
+      resp.clearCookie('access_token', { path: '/' });
+      resp.clearCookie('userId', { path: '/' });
+      resp.clearCookie('refresh_cookie', { path: '/' });
+      resp.clearCookie('x-csrf-token', { path: '/' });
+    }
+
+    return { message: 'Logged out succesfuly' };
+  }
+  private setCookies(
+    resp: Response,
+    token: string,
+    refreshToken: string,
+    userId: string,
+  ) {
+    resp.cookie('access_token', token, {
+      httpOnly: true,
+      maxAge: 3600000, // 1 hora en milisegundos
+      // secure:true //prod
+    });
+    resp.cookie('userId', userId, {
+      httpOnly: true,
+    });
+    resp.cookie('refresh_cookie', refreshToken, {
+      httpOnly: true,
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      path: '/',
+      sameSite: 'lax',
+    });
   }
 
   @Get('private')
