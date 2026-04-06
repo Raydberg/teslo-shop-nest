@@ -11,9 +11,8 @@ import { LoginDto } from 'src/auth/dto/login.dto';
 import { JwtPayload } from 'src/auth/interfaces/jwt-payload.interface';
 import { bcryptAdapter } from 'src/common/adapters/bycript.adapter';
 import { PrismaService } from 'src/common/prisma.service';
+import { createHash256 } from 'src/config/sha-246';
 import { Prisma } from 'src/generated/prisma/client';
-
-// interface AuthResponse {}
 
 @Injectable()
 export class AuthService {
@@ -38,7 +37,7 @@ export class AuthService {
       const slug = crypto.randomUUID();
       await this.prisma.refreshToken.create({
         data: {
-          token: await bcryptAdapter.hash(slug),
+          token: createHash256(slug),
           userId: user.id,
           expiryDate: new Date(Date.now() + 1000 * 60 * 60 * 24 * 7),
           ipAddress: ip,
@@ -48,11 +47,8 @@ export class AuthService {
 
       // delete user.password;
       return {
-        id: user.id,
-        email: user.email,
-        fullName: user.fullName,
-        roles: user.roles,
-        token: this.getJwtToken({ id: user.id }),
+        user,
+        accessToken: this.getJwtToken({ id: user.id }),
         refreshToken: slug,
       };
     } catch (error) {
@@ -66,14 +62,6 @@ export class AuthService {
 
       const user = await this.prisma.user.findFirst({
         where: { email },
-        select: {
-          id: true,
-          email: true,
-          password: true,
-          roles: true,
-          fullName: true,
-          isActive: true,
-        },
       });
 
       if (!user) {
@@ -90,7 +78,7 @@ export class AuthService {
       const slug = crypto.randomUUID();
       await this.prisma.refreshToken.create({
         data: {
-          token: await bcryptAdapter.hash(slug),
+          token: createHash256(slug),
           userId: user.id,
           expiryDate: new Date(Date.now() + 1000 * 60 * 60 * 24 * 7),
           ipAddress: ip,
@@ -99,12 +87,8 @@ export class AuthService {
       });
 
       return {
-        id: user.id,
-        fullName: user.fullName,
-        isActive: user.isActive,
-        email: user.email,
-        roles: user.roles,
-        token: this.getJwtToken({ id: user.id }),
+        user,
+        accessToken: this.getJwtToken({ id: user.id }),
         refreshToken: slug,
       };
     } catch (error) {
@@ -112,32 +96,30 @@ export class AuthService {
     }
   }
 
-  async refreshToken(
-    refreshToken: string,
-    userId: string,
-    userAgent: string,
-    ip: string,
-  ) {
-    const activeSessions = await this.prisma.refreshToken.findMany({
-      where: { userId, isRevoked: false },
+  async refreshToken(refreshToken: string, userAgent: string, ip: string) {
+    const activeSession = await this.prisma.refreshToken.findFirst({
+      where: {
+        token: createHash256(refreshToken),
+        isRevoked: false,
+        // Esto lo que dice es que el expiryDate sea mayor a la fecha de hoy
+        expiryDate: { gt: new Date() },
+      },
     });
 
-    let validSessionId: string | null = null;
-
-    for (const session of activeSessions) {
-      const isMatch = await bcryptAdapter.compare(refreshToken, session.token);
-      if (isMatch) {
-        validSessionId = session.id;
-        break;
-      }
+    if (!activeSession) {
+      throw new UnauthorizedException('ActiveSession Not Found');
     }
 
-    if (!validSessionId) {
-      throw new UnauthorizedException('Inalid refresh token');
+    const user = await this.prisma.user.findFirst({
+      where: { id: activeSession.userId },
+    });
+
+    if (!user) {
+      throw new BadRequestException('User not found ');
     }
 
     await this.prisma.refreshToken.update({
-      where: { id: validSessionId },
+      where: { id: activeSession.id },
       data: {
         isRevoked: true,
       },
@@ -147,8 +129,8 @@ export class AuthService {
 
     await this.prisma.refreshToken.create({
       data: {
-        token: await bcryptAdapter.hash(newSlug),
-        userId: userId,
+        token: createHash256(newSlug),
+        userId: activeSession.userId,
         expiryDate: new Date(Date.now() + 1000 * 60 * 60 * 24 * 7),
         userAgent: userAgent,
         ipAddress: ip,
@@ -156,32 +138,38 @@ export class AuthService {
     });
 
     return {
-      token: this.getJwtToken({ id: userId }),
+      user,
+      accessToken: this.getJwtToken({ id: activeSession.userId }),
       refreshToken: newSlug,
-      id: userId,
     };
   }
 
-  async logout(refreshToken: string, userId: string): Promise<void> {
-    const activeSessions = await this.prisma.refreshToken.findMany({
-      where: { userId, isRevoked: false },
-    });
+  async checkUserFromCookies(accessToken?: string) {
+    if (!accessToken) return null;
 
-    let validSessionId: string | null = null;
+    try {
+      const payload = this.jwtService.verify<JwtPayload>(accessToken);
 
-    for (const session of activeSessions) {
-      const isMatch = await bcryptAdapter.compare(refreshToken, session.token);
-      if (isMatch) {
-        validSessionId = session.id;
-        break;
-      }
+      const user = await this.prisma.user.findUnique({
+        where: { id: payload.id },
+      });
+      return user && user.isActive ? user : null;
+    } catch (error) {
+      this.logger.error('Error', error);
+      return null;
     }
-    if (!validSessionId) {
+  }
+
+  async logout(refreshToken: string): Promise<void> {
+    const activeSession = await this.prisma.refreshToken.findFirst({
+      where: { token: createHash256(refreshToken), isRevoked: false },
+    });
+    if (!activeSession) {
       throw new UnauthorizedException('Inalid refresh token');
     }
 
     await this.prisma.refreshToken.update({
-      where: { id: validSessionId },
+      where: { id: activeSession.id },
       data: {
         isRevoked: true,
       },
