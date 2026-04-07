@@ -5,10 +5,11 @@ import { SwaggerModule } from '@nestjs/swagger';
 import cookieParser from 'cookie-parser';
 import { doubleCsrfProtection } from 'src/config/csrf.config';
 import { swaggerConfig } from 'src/config/swagger';
+import { PrismaClientExceptionFilterFilter } from 'src/common/filters/prisma-client-exception-filter.filter';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-
+  app.useGlobalFilters(new PrismaClientExceptionFilterFilter());
   app.setGlobalPrefix('api');
   app.useGlobalInterceptors(new ClassSerializerInterceptor(app.get(Reflector)));
   app.useGlobalPipes(

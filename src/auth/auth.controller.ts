@@ -71,6 +71,20 @@ export class AuthController {
   ): Promise<AuthResponse> {
     const payload = req.cookies['access_token'] as string;
     const user = await this.authService.checkUserFromCookies(payload);
+    if (!user) {
+      const refreshCookie = req.cookies['refresh_cookie'] as string;
+      if (!refreshCookie) {
+        return this.createAuthResponse(req, resp, null);
+      }
+      const { user, accessToken, refreshToken } =
+        await this.authService.refreshToken(
+          refreshCookie,
+          req.headers['user-agent'] ?? '',
+          req.ip ?? '', // Configuracion extra al usar proxy
+        );
+      this.setCookies(resp, accessToken, refreshToken);
+      return this.createAuthResponse(req, resp, user);
+    }
     return this.createAuthResponse(req, resp, user);
   }
 

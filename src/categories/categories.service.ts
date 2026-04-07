@@ -12,81 +12,54 @@ export class CategoriesService {
       ? this.normalizeSlug(createCategoryDto.slug)
       : this.normalizeSlug(createCategoryDto.name);
 
-    try {
-      const categoryDB = await this.prisma.category.create({
-        data: {
-          name: createCategoryDto.name,
-          slug: categorySlug,
-        },
-      });
-      return categoryDB;
-    } catch (error) {
-      this.logger.error(error);
-      this.handleExceptions(error);
-    }
+    const categoryDB = await this.prisma.category.create({
+      data: {
+        name: createCategoryDto.name,
+        slug: categorySlug,
+      },
+    });
+    // if()
+    return categoryDB;
   }
 
   async findAll() {
-    try {
-      const categoriesDB = await this.prisma.category.findMany({
-        omit: { updatedAt: true, createdAt: true },
-      });
-      return categoriesDB;
-    } catch (error) {
-      this.logger.error(error);
-      this.handleExceptions(error);
-    }
+    const categoriesDB = await this.prisma.category.findMany({
+      omit: { updatedAt: true, createdAt: true },
+    });
+    return categoriesDB;
   }
 
   async findOne(id: string) {
-    try {
-      const categoryDB = await this.prisma.category.findFirst({
-        where: { id },
-        omit: { createdAt: true, updatedAt: true },
-      });
+    const categoryDB = await this.prisma.category.findFirst({
+      where: { id },
+      omit: { createdAt: true, updatedAt: true },
+    });
 
-      if (!categoryDB)
-        throw new BadRequestException(`Category with id ${id} not found`);
-      return categoryDB;
-    } catch (error) {
-      this.logger.error(error);
-      this.handleExceptions(error);
-    }
+    if (!categoryDB)
+      throw new BadRequestException(`Category with id ${id} not found`);
+    return categoryDB;
   }
 
   async update(id: string, updateCategoryDto: UpdateCategoryDto) {
-    try {
-      await this.findOne(id);
-      const categoryUpdate = await this.prisma.category.update({
-        where: { id },
-        data: {
-          ...updateCategoryDto,
-          updatedAt: Date.now().toString(),
-        },
-      });
-      return categoryUpdate;
-    } catch (error) {
-      this.logger.error(error);
-      this.handleExceptions(error);
-    }
+    await this.findOne(id);
+    const categoryUpdate = await this.prisma.category.update({
+      where: { id },
+      data: {
+        ...updateCategoryDto,
+        updatedAt: Date.now().toString(),
+      },
+    });
+    return categoryUpdate;
   }
 
   async remove(id: string) {
-    try {
-      await this.findOne(id);
-      const categoryDelete = await this.prisma.category.delete({
-        where: { id },
-      });
-      return categoryDelete;
-    } catch (error) {
-      this.logger.error(error);
-      this.handleExceptions(error);
-    }
+    await this.findOne(id);
+    const categoryDelete = await this.prisma.category.delete({
+      where: { id },
+    });
+    return categoryDelete;
   }
-  private handleExceptions(error: unknown): never {
-    this.logger.error(error);
-    throw new BadRequestException('Unexpected error , check server logs');
-  }
+
   private normalizeSlug(value: string): string | undefined {
     if (!value) return;
     return value.toLowerCase().trim().replaceAll(' ', '_').replaceAll("'", '');
